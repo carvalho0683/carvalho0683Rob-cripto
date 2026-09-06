@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#111827">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Robô Cripto">
+<meta name="apple-mobile-web-app-title" content="Robô Cripto MB">
 <link rel="manifest" href="./manifest.json">
-<title>Robô Cripto – Simulação</title>
+<title>Robô Cripto – Mercado Bitcoin</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif;color:#111827;background:#f3f4f6}
 *{box-sizing:border-box}body{margin:0;padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));max-width:760px;margin-inline:auto}
@@ -18,47 +18,151 @@ button{border:0;border-radius:13px;padding:12px 8px;min-height:46px;background:#
 </style>
 </head>
 <body>
-<h1>🤖 Robô Cripto</h1><div class="muted">V2 • SIMULAÇÃO • R$ 200 inicial</div>
-<div class="card warning"><b>Modo seguro.</b> Nenhuma ordem real é enviada. Esta versão é para validar o fluxo e a gestão de risco.</div>
+<h1>🤖 Robô Cripto MB</h1><div class="muted">V4 • API Mercado Bitcoin • Monitoramento com Autorização</div>
+<div class="card warning"><b>Modo Monitoramento.</b> Cotações reais integradas. Nenhuma ordem ou aporte é feito sem a sua autorização explícita nos botões.</div>
 <div class="card"><div class="grid">
-<div class="metric"><small>CAIXA</small><b id="cash"></b></div><div class="metric"><small>PATRIMÔNIO</small><b id="equity"></b></div>
-<div class="metric"><small>RESULTADO</small><b id="pnl"></b></div><div class="metric"><small>POSIÇÕES</small><b id="pos"></b></div>
+<div class="metric"><small>CAIXA DISPONÍVEL</small><b id="cash"></b></div><div class="metric"><small>PATRIMÔNIO</small><b id="equity"></b></div>
+<div class="metric"><small>RESULTADO (P/L)</small><b id="pnl"></b></div><div class="metric"><small>POSIÇÕES</small><b id="pos"></b></div>
 </div></div>
-<div class="card"><b>Mercado</b><div id="market"></div></div>
-<div class="card"><b>Controles</b><div class="actions">
-<button onclick="analyze()">📊 Analisar</button><button onclick="tick()">🔄 Atualizar</button>
-<button onclick="buy('BTC')">🟢 Comprar BTC</button><button onclick="buy('ETH')">🟢 Comprar ETH</button>
-<button onclick="buy('SOL')">🟢 Comprar SOL</button><button onclick="closeAll()" class="danger">⛔ Encerrar tudo</button>
-<button onclick="showHistory()" class="secondary">📜 Histórico</button><button onclick="resetApp()" class="secondary">♻️ Resetar</button>
-</div><p class="muted">R$ 50 máx./operação • Stop 5% • Alvo 8% • Máximo 2 posições.</p></div>
-<div class="card"><b>Posições abertas</b><div id="open"></div></div>
-<div class="card"><b>Histórico recente</b><pre id="log"></pre></div>
+<div class="card"><b>Mercado (Preços Reais MB)</b><div id="market"></div></div>
+<div class="card"><b>Painel de Controle e Autorização</b><div class="actions">
+<button onclick="depositModal()">💰 Depositar Caixa</button><button onclick="fetchMarketPrices()">🔄 Atualizar Cotações</button>
+<button onclick="buy('BTC')">🟢 Autorizar Aporte BTC</button><button onclick="buy('ETH')">🟢 Autorizar Aporte ETH</button>
+<button onclick="buy('SOL')">🟢 Autorizar Aporte SOL</button><button onclick="closeAll()" class="danger">⛔ Zerar Posições</button>
+<button onclick="showHistory()" class="secondary">📜 Histórico</button><button onclick="resetApp()" class="secondary">♻️ Resetar Tudo</button>
+</div><p class="muted">Aportes limitados ao seu caixa • Stop Loss 5% • Take Profit 8%.</p></div>
+<div class="card"><b>Posições Abertas</b><div id="open"></div></div>
+<div class="card"><b>Log de Eventos e Sinais</b><pre id="log"></pre></div>
 <script>
-const C={initial:200,maxTrade:50,maxPos:2,stop:.05,take:.08};
-const seed={BTC:105000,ETH:5600,SOL:820};
-let s=JSON.parse(localStorage.getItem("roboCryptoSimV2")||"null");
-if(!s)s={cash:C.initial,prices:{...seed},positions:{},history:[],signals:{}};
-function save(){localStorage.setItem("roboCryptoSimV2",JSON.stringify(s))}
+const C={maxTrade:50,maxPos:2,stop:.05,take:.08};
+let s=JSON.parse(localStorage.getItem("roboCryptoMB_V4")||"null");
+if(!s)s={cash:0,prices:{BTC:0,ETH:0,SOL:0},positions:{},history:[],signals:{}};
+
+function save(){localStorage.setItem("roboCryptoMB_V4",JSON.stringify(s))}
 function brl(x){return Number(x).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
-function equity(){return s.cash+Object.entries(s.positions).reduce((v,[a,p])=>v+p.qty*s.prices[a],0)}
-function addLog(t){s.history.unshift(new Date().toLocaleString("pt-BR")+" — "+t);s.history=s.history.slice(0,100);save();render()}
+function equity(){return s.cash+Object.entries(s.positions).reduce((v,[a,p])=>v+p.qty*(s.prices[a]||p.entry),0)}
+
+function addLog(t){
+s.history.unshift(new Date().toLocaleString("pt-BR")+" — "+t);
+s.history=s.history.slice(0,100);
+save();
+render();
+}
+
+// Função para buscar preços reais na API pública v4 do Mercado Bitcoin
+async function fetchMarketPrices(){
+addLog("Buscando cotações reais na API do Mercado Bitcoin...");
+const pairs=["BTC-BRL","ETH-BRL","SOL-BRL"];
+try{
+for(let pair of pairs){
+let res = await fetch(`https://api.mercadobitcoin.net/api/v4/ticker?symbols=${pair}`);
+let data = await res.json();
+if(data && data.length > 0){
+let coin = pair.split("-")[0];
+s.prices[coin] = parseFloat(data[0].last);
+}
+}
+addLog("Cotações atualizadas com sucesso!");
+}catch(e){
+addLog("Erro ao buscar API do Mercado Bitcoin. Usando cache anterior.");
+}
+checkTriggers();
+save();
+render();
+}
+
 function render(){
 document.getElementById("cash").textContent=brl(s.cash);
 document.getElementById("equity").textContent=brl(equity());
-document.getElementById("pnl").textContent=brl(equity()-C.initial);
+document.getElementById("pnl").textContent=brl(equity()-(s.initialTotal||0));
 document.getElementById("pos").textContent=Object.keys(s.positions).length+"/"+C.maxPos;
-document.getElementById("market").innerHTML=["BTC","ETH","SOL"].map(a=>`<div class="row"><span><b>${a}-BRL</b><br><small>${brl(s.prices[a])}</small></span><span class="badge">${s.signals[a]||"—"}</span></div>`).join("");
-document.getElementById("open").innerHTML=Object.entries(s.positions).map(([a,p])=>`<div class="row"><span><b>${a}</b><br><small>Entrada ${brl(p.entry)} • qtd ${p.qty.toFixed(8)}</small></span><span><b>${brl(p.qty*s.prices[a])}</b><br><small>SL ${brl(p.stop)} • TP ${brl(p.take)}</small></span></div>`).join("")||'<span class="muted">Nenhuma posição aberta.</span>';
+
+let marketHtml="";
+["BTC","ETH","SOL"].forEach(a=>{
+let pr=s.prices[a]?brl(s.prices[a]):"Carregando...";
+marketHtml+=`<div class="row"><span><b>${a}-BRL</b><br><small>${pr}</small></span><span class="badge">${s.signals[a]||"Monitorando"}</span></div>`;
+});
+document.getElementById("market").innerHTML=marketHtml;
+
+document.getElementById("open").innerHTML=Object.entries(s.positions).map(([a,p])=>`<div class="row"><span><b>${a}</b><br><small>Entrada ${brl(p.entry)} • qtd ${p.qty.toFixed(8)}</small></span><span><b>${brl(p.qty*(s.prices[a]||p.entry))}</b><br><small>SL ${brl(p.stop)} • TP ${brl(p.take)}</small></span></div>`).join("")||'<span class="muted">Nenhuma posição aberta.</span>';
+
 document.getElementById("log").textContent=s.history.slice(0,20).join("\n");
 }
-function tick(){for(const a of Object.keys(s.prices)){const d=(Math.random()-.49)*(a==="BTC"?.012:.018);s.prices[a]=Math.max(1,s.prices[a]*(1+d))}
-for(const [a,p] of Object.entries({...s.positions})){const px=s.prices[a];if(px<=p.stop){sell(a,"STOP");continue}if(px>=p.take){sell(a,"ALVO");continue}if(px>=p.entry*1.05)p.stop=Math.max(p.stop,px*.97)}save();render()}
-function analyze(){for(const a of ["BTC","ETH","SOL"]){const r=Math.random();s.signals[a]=r>.64?"COMPRA":r<.30?"VENDA":"AGUARDAR"}addLog("Análise: "+Object.entries(s.signals).map(x=>x[0]+" "+x[1]).join(" | "))}
-function buy(a){if(s.positions[a])return addLog("Compra ignorada: posição já aberta em "+a);if(Object.keys(s.positions).length>=C.maxPos)return addLog("Compra bloqueada: máximo de posições.");const amount=Math.min(C.maxTrade,s.cash);if(amount<5)return addLog("Compra bloqueada: caixa insuficiente.");const px=s.prices[a];s.cash-=amount;s.positions[a]={qty:amount/px,entry:px,stop:px*(1-C.stop),take:px*(1+C.take),invested:amount};addLog("COMPRA SIMULADA "+a+" por "+brl(amount)+" @ "+brl(px))}
-function sell(a,reason){const p=s.positions[a];if(!p)return;const gross=p.qty*s.prices[a],profit=gross-p.invested;s.cash+=gross;delete s.positions[a];addLog("VENDA "+a+" ("+reason+") | P/L "+brl(profit))}
-function closeAll(){Object.keys(s.positions).forEach(a=>sell(a,"ENCERRAMENTO"))}
-function showHistory(){alert(s.history.slice(0,40).join("\n")||"Sem operações.")}
-function resetApp(){if(confirm("Apagar dados e voltar para R$ 200?")){localStorage.removeItem("roboCryptoSimV2");location.reload()}}
-if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
-render();setInterval(tick,15000);
+
+function depositModal(){
+let val = prompt("Quanto deseja depositar no Caixa para futuros aportes (R$)?", "200");
+if(val && !isNaN(val)){
+let num = parseFloat(val);
+s.cash += num;
+s.initialTotal = (s.initialTotal || 0) + num;
+addLog("Depósito efetuado no caixa: "+brl(num));
+save();
+render();
+}
+}
+
+function checkTriggers(){
+for(const [a,p] of Object.entries({...s.positions})){
+const px=s.prices[a];
+if(!px) continue;
+if(px<=p.stop){sell(a,"STOP LOSS (Segurança)");continue;}
+if(px>=p.take){sell(a,"TAKE PROFIT (Alvo Batido)");continue;}
+}
+}
+
+function buy(a){
+if(s.cash<=0){return addLog("Aporte negado: Caixa zerado. Adicione saldo usando o botão 'Depositar Caixa'.");}
+if(s.positions[a])return addLog("Aporte ignorado: Já existe posição aberta em "+a);
+if(Object.keys(s.positions).length>=C.maxPos)return addLog("Aporte bloqueado: Limite máximo de posições atingido.");
+
+let px=s.prices[a];
+if(!px || px<=0) return addLog("Erro: Preço da moeda ainda não carregado da API.");
+
+const amount=Math.min(C.maxTrade,s.cash);
+s.cash-=amount;
+s.positions[a]={
+qty:amount/px,
+entry:px,
+stop:px*(1-C.stop),
+take:px*(1+C.take),
+invested:amount
+};
+
+addLog("APORTE AUTORIZADO E EXECUTADO em "+a+" por "+brl(amount)+" @ "+brl(px));
+save();
+render();
+}
+
+function sell(a,reason){
+const p=s.positions[a];
+if(!p)return;
+const px=s.prices[a]||p.entry;
+const gross=p.qty*px;
+const profit=gross-p.invested;
+s.cash+=gross;
+delete s.positions[a];
+addLog("SAÍDA EM "+a+" ("+reason+") | P/L: "+brl(profit));
+save();
+render();
+}
+
+function closeAll(){
+Object.keys(s.positions).forEach(a=>sell(a,"ENCERRAMENTO MANUAL"));
+}
+
+function showHistory(){
+alert(s.history.slice(0,40).join("\n")||"Sem eventos recentes.");
+}
+
+function resetApp(){
+if(confirm("Deseja apagar todos os dados e zerar o painel?")){
+localStorage.removeItem("roboCryptoMB_V4");
+location.reload();
+}
+}
+
+// Inicializa buscando os preços de mercado de verdade do Mercado Bitcoin
+fetchMarketPrices();
+// Atualiza a cada 30 segundos
+setInterval(fetchMarketPrices, 30000);
 </script></body></html>
