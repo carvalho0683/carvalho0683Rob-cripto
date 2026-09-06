@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Robô Cripto MB">
 <link rel="manifest" href="./manifest.json">
-<title>Robô Cripto – Mercado Bitcoin</title>
+<title>Robô Cripto – iPhone PWA</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif;color:#111827;background:#f3f4f6}
 *{box-sizing:border-box}body{margin:0;padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));max-width:760px;margin-inline:auto}
@@ -18,8 +18,8 @@ button{border:0;border-radius:13px;padding:12px 8px;min-height:46px;background:#
 </style>
 </head>
 <body>
-<h1>🤖 Robô Cripto MB</h1><div class="muted">V5 • API Mercado Bitcoin • Monitoramento com Autorização</div>
-<div class="card warning"><b>Modo Monitoramento.</b> Conectado à API pública da MB. Nenhuma ordem é executada sem a sua autorização.</div>
+<h1>🤖 Robô Cripto MB</h1><div class="muted">V7 • iPhone Live Trading • Conectado à Vercel</div>
+<div class="card warning"><b>Modo Produção Seguro.</b> As ordens são assinadas digitalmente via Vercel e executadas na sua conta real.</div>
 <div class="card"><div class="grid">
 <div class="metric"><small>CAIXA DISPONÍVEL</small><b id="cash"></b></div><div class="metric"><small>PATRIMÔNIO</small><b id="equity"></b></div>
 <div class="metric"><small>RESULTADO (P/L)</small><b id="pnl"></b></div><div class="metric"><small>POSIÇÕES</small><b id="pos"></b></div>
@@ -27,18 +27,20 @@ button{border:0;border-radius:13px;padding:12px 8px;min-height:46px;background:#
 <div class="card"><b>Mercado (Preços Reais MB)</b><div id="market"></div></div>
 <div class="card"><b>Painel de Controle e Autorização</b><div class="actions">
 <button onclick="depositModal()">💰 Depositar Caixa</button><button onclick="fetchMarketPrices()">🔄 Atualizar Cotações</button>
-<button onclick="buy('BTC')">🟢 Autorizar Aporte BTC</button><button onclick="buy('ETH')">🟢 Autorizar Aporte ETH</button>
-<button onclick="buy('SOL')">🟢 Autorizar Aporte SOL</button><button onclick="closeAll()" class="danger">⛔ Zerar Posições</button>
+<button onclick="buyRealCrypto('BTC')">🟢 Autorizar Aporte BTC</button><button onclick="buyRealCrypto('ETH')">🟢 Autorizar Aporte ETH</button>
+<button onclick="buyRealCrypto('SOL')">🟢 Autorizar Aporte SOL</button><button onclick="closeAll()" class="danger">⛔ Zerar Posições</button>
 <button onclick="showHistory()" class="secondary">📜 Histórico</button><button onclick="resetApp()" class="secondary">♻️ Resetar Tudo</button>
-</div><p class="muted">Aportes limitados ao seu caixa • Stop Loss 5% • Take Profit 8%.</p></div>
+</div><p class="muted">Aportes limitados ao caixa • Stop Loss 5% • Take Profit 8%.</p></div>
 <div class="card"><b>Posições Abertas</b><div id="open"></div></div>
 <div class="card"><b>Log de Eventos e Sinais</b><pre id="log"></pre></div>
 <script>
 const C={maxTrade:50,maxPos:2,stop:.05,take:.08};
-let s=JSON.parse(localStorage.getItem("roboCryptoMB_V5")||"null");
+const VERCEL_API_URL = "https://carvalho0683-rob-cripto.vercel.app/api/trade";
+
+let s=JSON.parse(localStorage.getItem("roboCryptoMB_V7")||"null");
 if(!s)s={cash:0,prices:{BTC:0,ETH:0,SOL:0},positions:{},history:[],signals:{}};
 
-function save(){localStorage.setItem("roboCryptoMB_V5",JSON.stringify(s))}
+function save(){localStorage.setItem("roboCryptoMB_V7",JSON.stringify(s))}
 function brl(x){return Number(x).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
 function equity(){return s.cash+Object.entries(s.positions).reduce((v,[a,p])=>v+p.qty*(s.prices[a]||p.entry),0)}
 
@@ -49,21 +51,23 @@ save();
 render();
 }
 
-// Busca usando os endpoints oficiais seguros da API v3/v4 do Mercado Bitcoin
 async function fetchMarketPrices(){
-addLog("Buscando cotações na API do Mercado Bitcoin...");
 const coins = ["BTC", "ETH", "SOL"];
 try {
     for(let coin of coins) {
-        let res = await fetch(`https://www.mercadobitcoin.net/api/${coin}/ticker/`);
-        let data = await res.json();
-        if(data && data.ticker && data.ticker.last) {
-            s.prices[coin] = parseFloat(data.ticker.last);
+        let targetUrl = `https://www.mercadobitcoin.net/api/${coin}/ticker/`;
+        let proxyUrl = `https://api.allorigins.win/get?url=` + encodeURIComponent(targetUrl);
+        let res = await fetch(proxyUrl);
+        let dataWrapped = await res.json();
+        if(dataWrapped && dataWrapped.contents) {
+            let data = JSON.parse(dataWrapped.contents);
+            if(data && data.ticker && data.ticker.last) {
+                s.prices[coin] = parseFloat(data.ticker.last);
+            }
         }
     }
-    addLog("Cotações reais atualizadas com sucesso!");
 } catch(e) {
-    addLog("Erro na API da MB. Mantendo valores atuais.");
+    console.log("Erro ao atualizar cotações.");
 }
 checkTriggers();
 save();
@@ -78,7 +82,7 @@ document.getElementById("pos").textContent=Object.keys(s.positions).length+"/"+C
 
 let marketHtml="";
 ["BTC","ETH","SOL"].forEach(a=>{
-let pr=s.prices[a] && s.prices[a] > 0 ? brl(s.prices[a]) : "Aguardando API...";
+let pr=s.prices[a] && s.prices[a] > 0 ? brl(s.prices[a]) : "Aguardando...";
 marketHtml+=`<div class="row"><span><b>${a}-BRL</b><br><small>${pr}</small></span><span class="badge">${s.signals[a]||"Monitorando"}</span></div>`;
 });
 document.getElementById("market").innerHTML=marketHtml;
@@ -89,12 +93,12 @@ document.getElementById("log").textContent=s.history.slice(0,20).join("\n");
 }
 
 function depositModal(){
-let val = prompt("Quanto deseja depositar no Caixa para futuros aportes (R$)?", "200");
+let val = prompt("Quanto deseja depositar no Caixa (R$)?", "200");
 if(val && !isNaN(val)){
 let num = parseFloat(val);
 s.cash += num;
 s.initialTotal = (s.initialTotal || 0) + num;
-addLog("Depósito efetuado no caixa: "+brl(num));
+addLog("Depósito efetuado: "+brl(num));
 save();
 render();
 }
@@ -104,32 +108,50 @@ function checkTriggers(){
 for(const [a,p] of Object.entries({...s.positions})){
 const px=s.prices[a];
 if(!px) continue;
-if(px<=p.stop){sell(a,"STOP LOSS (Segurança)");continue;}
-if(px>=p.take){sell(a,"TAKE PROFIT (Alvo Batido)");continue;}
+if(px<=p.stop){sell(a,"STOP LOSS");continue;}
+if(px>=p.take){sell(a,"TAKE PROFIT");continue;}
 }
 }
 
-function buy(a){
-if(s.cash<=0){return addLog("Aporte negado: Caixa zerado. Adicione saldo usando o botão 'Depositar Caixa'.");}
-if(s.positions[a])return addLog("Aporte ignorado: Já existe posição aberta em "+a);
-if(Object.keys(s.positions).length>=C.maxPos)return addLog("Aporte bloqueado: Limite máximo de posições atingido.");
+async function buyRealCrypto(a){
+if(s.cash<=0){return addLog("Aporte negado: Caixa zerado. Use 'Depositar Caixa'.");}
+if(s.positions[a])return addLog("Aporte ignorado: Posição aberta em "+a);
+if(Object.keys(s.positions).length>=C.maxPos)return addLog("Aporte bloqueado: Máximo de posições.");
 
 let px=s.prices[a];
-if(!px || px<=0) return addLog("Erro: Preço da moeda ainda não carregado da API.");
+if(!px || px<=0) return addLog("Erro: Preço da moeda não carregado.");
 
 const amount=Math.min(C.maxTrade,s.cash);
-s.cash-=amount;
-s.positions[a]={
-qty:amount/px,
-entry:px,
-stop:px*(1-C.stop),
-take:px*(1+C.take),
-invested:amount
-};
+const calculatedQty = amount / px;
 
-addLog("APORTE AUTORIZADO E EXECUTADO em "+a+" por "+brl(amount)+" @ "+brl(px));
-save();
-render();
+addLog("Enviando ordem real para a MB via Vercel ("+a+")...");
+
+try {
+    let response = await fetch(VERCEL_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: `${a}-BRL`, amount: calculatedQty.toFixed(6) })
+    });
+    
+    let result = await response.json();
+    if(response.ok && result.success) {
+        s.cash-=amount;
+        s.positions[a]={
+            qty:calculatedQty,
+            entry:px,
+            stop:px*(1-C.stop),
+            take:px*(1+C.take),
+            invested:amount
+        };
+        addLog("ORDEM EXECUTADA NA CONTA REAL: "+a+" por "+brl(amount));
+        save();
+        render();
+    } else {
+        addLog(`Erro na exchange: ${JSON.stringify(result.error || result)}`);
+    }
+} catch(e) {
+    addLog("Falha de comunicação com o servidor seguro da Vercel.");
+}
 }
 
 function sell(a,reason){
@@ -146,16 +168,16 @@ render();
 }
 
 function closeAll(){
-Object.keys(s.positions).forEach(a=>sell(a,"ENCERRAMENTO MANUAL"));
+Object.keys(s.positions).forEach(a=>sell(a,"ENCERRAMENTO"));
 }
 
 function showHistory(){
-alert(s.history.slice(0,40).join("\n")||"Sem eventos recentes.");
+alert(s.history.slice(0,40).join("\n")||"Sem eventos.");
 }
 
 function resetApp(){
-if(confirm("Deseja apagar todos os dados e zerar o painel?")){
-localStorage.removeItem("roboCryptoMB_V5");
+if(confirm("Zerar todos os dados do painel?")){
+localStorage.removeItem("roboCryptoMB_V7");
 location.reload();
 }
 }
