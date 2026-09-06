@@ -1,0 +1,19 @@
+{
+  "projeto": "Robô Cripto – Simulação",
+  "versao": "2.0",
+  "modo": "PAPER_TRADING",
+  "capital_inicial_brl": 200,
+  "aporte_mensal_brl": 100,
+  "ativos": [
+    "BTC-BRL",
+    "ETH-BRL",
+    "SOL-BRL"
+  ],
+  "risco": {
+    "max_por_operacao_brl": 50,
+    "max_posicoes": 2,
+    "stop_loss_pct": 5,
+    "take_profit_pct": 8
+  },
+  "dados": "A V2 mantém preços simulados para teste do fluxo; nenhuma API privada ou ordem real."
+}
