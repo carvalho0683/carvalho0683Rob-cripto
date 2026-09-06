@@ -8,39 +8,78 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Robô Cripto MB">
 <link rel="manifest" href="./manifest.json">
-<title>Robô Cripto – iPhone PWA</title>
+<title>Robô Cripto – iPhone PWA V8</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif;color:#111827;background:#f3f4f6}
 *{box-sizing:border-box}body{margin:0;padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));max-width:760px;margin-inline:auto}
 h1{font-size:26px;margin:8px 0 2px}.muted{color:#6b7280;font-size:12px}.card{background:#fff;border-radius:18px;padding:15px;margin:12px 0;box-shadow:0 2px 12px #00000010}
 .grid,.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metric{background:#f9fafb;border-radius:13px;padding:11px}.metric small{color:#6b7280}.metric b{display:block;font-size:18px;margin-top:3px}
-button{border:0;border-radius:13px;padding:12px 8px;min-height:46px;background:#111827;color:#fff;font-weight:700;font-size:14px}.secondary{background:#e5e7eb;color:#111827}.danger{background:#991b1b}.row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid #eee}.row:first-child{border-top:0}.badge{font-size:11px;background:#e5e7eb;border-radius:10px;padding:5px 8px}.warning{background:#fff7ed;font-size:12px;color:#7c2d12}pre{white-space:pre-wrap;word-break:break-word;font-size:11px;max-height:250px;overflow:auto;margin-bottom:0}
+button{border:0;border-radius:13px;padding:12px 8px;min-height:46px;background:#111827;color:#fff;font-weight:700;font-size:14px}.secondary{background:#e5e7eb;color:#111827}.danger{background:#991b1b}.row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid #eee}.row:first-child{border-top:0}.badge{font-size:11px;background:#e5e7eb;border-radius:10px;padding:5px 8px}.warning{background:#fff7ed;font-size:12px;color:#7c2d12}
+input{width:100%;padding:10px;margin:6px 0 12px;border:1px solid #d1d5db;border-radius:10px;font-size:14px}
+pre{white-space:pre-wrap;word-break:break-word;font-size:11px;max-height:220px;overflow:auto;margin-bottom:0}
 </style>
 </head>
 <body>
-<h1>🤖 Robô Cripto MB</h1><div class="muted">V7 • iPhone Live Trading • Conectado à Vercel</div>
-<div class="card warning"><b>Modo Produção Seguro.</b> As ordens são assinadas digitalmente via Vercel e executadas na sua conta real.</div>
+<h1>🤖 Robô Cripto MB</h1><div class="muted">V8 • iPhone Direct Trading • Sem Servidores</div>
+
+<div class="card warning">
+  <b>Modo Direto Seguro.</b> As chaves ficam salvas de forma privada apenas no armazenamento local do seu iPhone e assinam as ordens direto com o Mercado Bitcoin.
+</div>
+
+<div class="card">
+  <b>🔑 Configuração de Chaves da API MB</b>
+  <div style="margin-top:10px;">
+    <small>API Key:</small>
+    <input type="text" id="apiKeyInput" placeholder="Cole sua API Key aqui">
+    <small>API Secret:</small>
+    <input type="password" id="apiSecretInput" placeholder="Cole sua API Secret aqui">
+    <button onclick="saveKeys()" class="secondary" style="width:100%;">Salvar Chaves no Aparelho</button>
+  </div>
+</div>
+
 <div class="card"><div class="grid">
 <div class="metric"><small>CAIXA DISPONÍVEL</small><b id="cash"></b></div><div class="metric"><small>PATRIMÔNIO</small><b id="equity"></b></div>
 <div class="metric"><small>RESULTADO (P/L)</small><b id="pnl"></b></div><div class="metric"><small>POSIÇÕES</small><b id="pos"></b></div>
 </div></div>
+
 <div class="card"><b>Mercado (Preços Reais MB)</b><div id="market"></div></div>
+
 <div class="card"><b>Painel de Controle e Autorização</b><div class="actions">
 <button onclick="depositModal()">💰 Depositar Caixa</button><button onclick="fetchMarketPrices()">🔄 Atualizar Cotações</button>
 <button onclick="buyRealCrypto('BTC')">🟢 Autorizar Aporte BTC</button><button onclick="buyRealCrypto('ETH')">🟢 Autorizar Aporte ETH</button>
 <button onclick="buyRealCrypto('SOL')">🟢 Autorizar Aporte SOL</button><button onclick="closeAll()" class="danger">⛔ Zerar Posições</button>
 <button onclick="showHistory()" class="secondary">📜 Histórico</button><button onclick="resetApp()" class="secondary">♻️ Resetar Tudo</button>
 </div><p class="muted">Aportes limitados ao caixa • Stop Loss 5% • Take Profit 8%.</p></div>
+
 <div class="card"><b>Posições Abertas</b><div id="open"></div></div>
 <div class="card"><b>Log de Eventos e Sinais</b><pre id="log"></pre></div>
+
 <script>
 const C={maxTrade:50,maxPos:2,stop:.05,take:.08};
-const VERCEL_API_URL = "https://carvalho0683-rob-cripto.vercel.app/api/trade";
 
-let s=JSON.parse(localStorage.getItem("roboCryptoMB_V7")||"null");
+let s=JSON.parse(localStorage.getItem("roboCryptoMB_V8")||"null");
 if(!s)s={cash:0,prices:{BTC:0,ETH:0,SOL:0},positions:{},history:[],signals:{}};
 
-function save(){localStorage.setItem("roboCryptoMB_V7",JSON.stringify(s))}
+// Carrega as chaves salvas ao abrir
+window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('apiKeyInput').value = localStorage.getItem('mb_key') || '';
+    document.getElementById('apiSecretInput').value = localStorage.getItem('mb_secret') || '';
+});
+
+function saveKeys(){
+    const k = document.getElementById('apiKeyInput').value.trim();
+    const sec = document.getElementById('apiSecretInput').value.trim();
+    if(!k || !sec) {
+        alert("Preencha ambos os campos de chave.");
+        return;
+    }
+    localStorage.setItem('mb_key', k);
+    localStorage.setItem('mb_secret', sec);
+    addLog("Chaves de API atualizadas e salvas no iPhone com sucesso.");
+    alert("Chaves salvas com segurança no aparelho!");
+}
+
+function save(){localStorage.setItem("roboCryptoMB_V8",JSON.stringify(s))}
 function brl(x){return Number(x).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
 function equity(){return s.cash+Object.entries(s.positions).reduce((v,[a,p])=>v+p.qty*(s.prices[a]||p.entry),0)}
 
@@ -113,7 +152,23 @@ if(px>=p.take){sell(a,"TAKE PROFIT");continue;}
 }
 }
 
+// Função criptográfica nativa do navegador para assinar a ordem (HMAC-SHA256)
+async function signMessage(secret, message) {
+    const enc = new TextEncoder();
+    const key = await window.crypto.subtle.importKey(
+        "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    );
+    const signature = await window.crypto.subtle.sign("HMAC", key, enc.encode(message));
+    return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function buyRealCrypto(a){
+const apiKey = localStorage.getItem('mb_key');
+const apiSecret = localStorage.getItem('mb_secret');
+
+if(!apiKey || !apiSecret) {
+    return addLog("Erro: Insira e salve sua API Key e API Secret no campo de configuração acima.");
+}
 if(s.cash<=0){return addLog("Aporte negado: Caixa zerado. Use 'Depositar Caixa'.");}
 if(s.positions[a])return addLog("Aporte ignorado: Posição aberta em "+a);
 if(Object.keys(s.positions).length>=C.maxPos)return addLog("Aporte bloqueado: Máximo de posições.");
@@ -124,17 +179,39 @@ if(!px || px<=0) return addLog("Erro: Preço da moeda não carregado.");
 const amount=Math.min(C.maxTrade,s.cash);
 const calculatedQty = amount / px;
 
-addLog("Enviando ordem real para a MB via Vercel ("+a+")...");
+addLog("Disparando ordem real para a MB ("+a+")...");
 
 try {
-    let response = await fetch(VERCEL_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: `${a}-BRL`, amount: calculatedQty.toFixed(6) })
+    const tsi = Math.floor(Date.now() / 1000).toString();
+    const endpoint = `/api/v4/order`;
+    const method = 'POST';
+    const bodyData = JSON.stringify({
+        symbol: `${a}-BRL`,
+        type: 'market',
+        side: 'buy',
+        quantity: calculatedQty.toFixed(6)
     });
+
+    const signaturePayload = `${method}\n${endpoint}\n${tsi}\n${bodyData}`;
+    const signature = await signMessage(apiSecret, signaturePayload);
+
+    // Usando proxy CORS público para iPhone se necessário, ou fetch direto
+    let targetUrl = `https://api.mercadobitcoin.net${endpoint}`;
     
+    let response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'TSI': tsi,
+            'API-KEY': apiKey,
+            'SIGNATURE': signature
+        },
+        body: bodyData
+    });
+
     let result = await response.json();
-    if(response.ok && result.success) {
+    
+    if(response.ok) {
         s.cash-=amount;
         s.positions[a]={
             qty:calculatedQty,
@@ -147,10 +224,10 @@ try {
         save();
         render();
     } else {
-        addLog(`Erro na exchange: ${JSON.stringify(result.error || result)}`);
+        addLog(`Erro da MB: ${JSON.stringify(result)}`);
     }
 } catch(e) {
-    addLog("Falha de comunicação com o servidor seguro da Vercel.");
+    addLog("Falha de conexão ao enviar ordem para a MB: " + e.message);
 }
 }
 
@@ -177,7 +254,7 @@ alert(s.history.slice(0,40).join("\n")||"Sem eventos.");
 
 function resetApp(){
 if(confirm("Zerar todos os dados do painel?")){
-localStorage.removeItem("roboCryptoMB_V7");
+localStorage.removeItem("roboCryptoMB_V8");
 location.reload();
 }
 }
