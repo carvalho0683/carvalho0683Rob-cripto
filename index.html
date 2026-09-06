@@ -43,10 +43,13 @@ function brl(x){return Number(x).toLocaleString("pt-BR",{style:"currency",curren
 function equity(){return s.cash+Object.entries(s.positions).reduce((v,[a,p])=>v+p.qty*s.prices[a],0)}
 function addLog(t){s.history.unshift(new Date().toLocaleString("pt-BR")+" — "+t);s.history=s.history.slice(0,100);save();render()}
 function render(){
-cash.textContent=brl(s.cash);document.getElementById("equity").textContent=brl(equity());pnl.textContent=brl(equity()-C.initial);pos.textContent=Object.keys(s.positions).length+"/"+C.maxPos;
-market.innerHTML=["BTC","ETH","SOL"].map(a=>`<div class="row"><span><b>${a}-BRL</b><br><small>${brl(s.prices[a])}</small></span><span class="badge">${s.signals[a]||"—"}</span></div>`).join("");
-open.innerHTML=Object.entries(s.positions).map(([a,p])=>`<div class="row"><span><b>${a}</b><br><small>Entrada ${brl(p.entry)} • qtd ${p.qty.toFixed(8)}</small></span><span><b>${brl(p.qty*s.prices[a])}</b><br><small>SL ${brl(p.stop)} • TP ${brl(p.take)}</small></span></div>`).join("")||'<span class="muted">Nenhuma posição aberta.</span>';
-log.textContent=s.history.slice(0,20).join("\n");
+document.getElementById("cash").textContent=brl(s.cash);
+document.getElementById("equity").textContent=brl(equity());
+document.getElementById("pnl").textContent=brl(equity()-C.initial);
+document.getElementById("pos").textContent=Object.keys(s.positions).length+"/"+C.maxPos;
+document.getElementById("market").innerHTML=["BTC","ETH","SOL"].map(a=>`<div class="row"><span><b>${a}-BRL</b><br><small>${brl(s.prices[a])}</small></span><span class="badge">${s.signals[a]||"—"}</span></div>`).join("");
+document.getElementById("open").innerHTML=Object.entries(s.positions).map(([a,p])=>`<div class="row"><span><b>${a}</b><br><small>Entrada ${brl(p.entry)} • qtd ${p.qty.toFixed(8)}</small></span><span><b>${brl(p.qty*s.prices[a])}</b><br><small>SL ${brl(p.stop)} • TP ${brl(p.take)}</small></span></div>`).join("")||'<span class="muted">Nenhuma posição aberta.</span>';
+document.getElementById("log").textContent=s.history.slice(0,20).join("\n");
 }
 function tick(){for(const a of Object.keys(s.prices)){const d=(Math.random()-.49)*(a==="BTC"?.012:.018);s.prices[a]=Math.max(1,s.prices[a]*(1+d))}
 for(const [a,p] of Object.entries({...s.positions})){const px=s.prices[a];if(px<=p.stop){sell(a,"STOP");continue}if(px>=p.take){sell(a,"ALVO");continue}if(px>=p.entry*1.05)p.stop=Math.max(p.stop,px*.97)}save();render()}
